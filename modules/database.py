@@ -24,6 +24,16 @@ def db():
     conn.row_factory = sqlite3.Row
     return conn
 
+
+def _column_type(name):
+    return "INTEGER" if name == "score" else "TEXT"
+
+def _ensure_columns(conn):
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(prospects)").fetchall()}
+    for col in COLUMNS:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE prospects ADD COLUMN {col} {_column_type(col)}")
+
 def init_db():
     fields = """
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +48,7 @@ def init_db():
     """
     with db() as conn:
         conn.execute(f"CREATE TABLE IF NOT EXISTS prospects ({fields})")
+        _ensure_columns(conn)
         conn.execute("""
         CREATE TABLE IF NOT EXISTS actions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +71,7 @@ def add_action(prospect_id, action_type, detail):
 def save_prospects(rows):
     inserted, updated = 0, 0
     with db() as conn:
+        _ensure_columns(conn)
         for row in rows:
             if not row.get("lien_annonce"):
                 continue
@@ -67,7 +79,7 @@ def save_prospects(rows):
             existing = conn.execute("SELECT id FROM prospects WHERE lien_annonce=?", (clean_row["lien_annonce"],)).fetchone()
             if existing:
                 updated += 1
-                protected = {"lien_annonce", "statut", "date_contact", "relance_1", "relance_2", "commentaires", "dernier_message", "dernier_message_linkedin"}
+                protected = {"lien_annonce", "statut", "date_contact", "relance_1", "relance_2", "commentaires", "dernier_message", "dernier_message_linkedin", "contact_public", "email_public", "telephone"}
                 cols = [c for c in COLUMNS if c not in protected]
                 set_clause = ", ".join([f"{c}=?" for c in cols])
                 conn.execute(f"UPDATE prospects SET {set_clause} WHERE lien_annonce=?", [clean_row[c] for c in cols] + [clean_row["lien_annonce"]])
@@ -80,6 +92,7 @@ def save_prospects(rows):
 
 def load_prospects():
     with db() as conn:
+        _ensure_columns(conn)
         rows = conn.execute("SELECT * FROM prospects ORDER BY score DESC, id DESC").fetchall()
     return pd.DataFrame([dict(r) for r in rows])
 
@@ -122,3 +135,21 @@ def update_enriched(row):
              row.get("commentaires",""), str(date.today()), row["id"])
         )
         conn.commit()
+
+
+def update_prospect_details(prospect_id, updates):
+    allowed_fields = {
+        "cabinet", "contact_public", "email_public", "telephone", "site_web", "linkedin",
+        "page_contact", "statut", "priorite", "temperature", "potentiel_ca", "date_contact",
+        "relance_1", "relance_2", "commentaires"
+    }
+    clean_updates = {key: value for key, value in (updates or {}).items() if key in allowed_fields}
+    if not clean_updates:
+        return
+    clean_updates["updated_at"] = str(date.today())
+    with db() as conn:
+        _ensure_columns(conn)
+        set_clause = ", ".join([f"{key}=?" for key in clean_updates.keys()])
+        conn.execute(f"UPDATE prospects SET {set_clause} WHERE id=?", list(clean_updates.values()) + [prospect_id])
+        conn.commit()
+    add_action(prospect_id, "Fiche prospect", "Mise à jour manuelle")
