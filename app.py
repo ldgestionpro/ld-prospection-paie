@@ -4,13 +4,14 @@ import streamlit as st
 
 from modules.database import init_db, load_prospects, load_actions, update_status, save_messages
 from modules.france_travail import run_watch
+from modules.multi_source import run_multi_source_watch
 from modules.messages import build_mail, build_linkedin_message
 from modules.exports import build_excel_export
 from modules.enrichment import enrich_best_prospects
 from modules.config import env_status
 from modules.scoring import STATUSES
 
-APP_VERSION = "V12.0"
+APP_VERSION = "V13.0"
 
 st.set_page_config(page_title=f"LD Prospection Paie {APP_VERSION}", layout="wide", initial_sidebar_state="expanded")
 init_db()
@@ -24,22 +25,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<p class="ld-title">LD Prospection Paie - V12</p>', unsafe_allow_html=True)
+st.markdown('<p class="ld-title">LD Prospection Paie - V13</p>', unsafe_allow_html=True)
 st.markdown('<p class="ld-subtitle">Assistant commercial pour trouver, qualifier, enrichir et suivre tes prospects paie.</p>', unsafe_allow_html=True)
 
 status = env_status()
 c1, c2 = st.columns(2)
 with c1:
-    if status.get("france_travail"):
-        st.success("✅ France Travail connecté.")
-    else:
-        st.error("❌ France Travail non connecté : vérifie les secrets.")
-
+    st.success("France Travail connecté.") if status.get("france_travail") else st.error("France Travail non connecté : vérifie les secrets / .env.")
 with c2:
-    if status.get("tavily") or status.get("google"):
-        st.success("✅ Enrichissement avancé activé.")
-    else:
-        st.info("ℹ️ Enrichissement en secours : DuckDuckGo + liens Google/LinkedIn.")
+    st.success("Enrichissement avancé activé.") if (status.get("tavily") or status.get("google")) else st.info("Enrichissement en secours : DuckDuckGo + liens Google/LinkedIn.")
 
 tabs = st.tabs(["🏠 Dashboard", "🤖 Agent", "🗓️ Actions", "🏢 CRM", "✉️ Messages", "🌐 Enrichir", "📊 Analyse", "📤 Export", "🧾 Historique"])
 
@@ -65,6 +59,27 @@ with tabs[0]:
 
 with tabs[1]:
     st.subheader("Agent de veille intelligente")
+
+    st.markdown("### 🚀 Moteur V13 multi-sources")
+    st.write("Recherche via Tavily sur plusieurs sources publiques : HelloWork, APEC, Welcome to the Jungle, Indeed, LinkedIn Jobs et sites de cabinets.")
+    ms_departments = st.text_input("Départements multi-sources", value="26,07,38,69,42,44,35,49,85", key="ms_departments")
+    ms_max = st.slider("Résultats max par source", 3, 15, 8, 1)
+    if st.button("🚀 Lancer le moteur multi-sources V13"):
+        try:
+            dep_list = [d.strip().zfill(2) for d in ms_departments.split(",") if d.strip().isdigit()]
+            inserted, updated, errors = run_multi_source_watch(dep_list, ms_max)
+            if errors:
+                st.warning(f"Multi-sources terminé avec {len(errors)} alerte(s). Nouveaux : {inserted}, déjà connus : {updated}.")
+                with st.expander("Voir les alertes multi-sources"):
+                    for e in errors:
+                        st.write(e)
+            else:
+                st.success(f"Multi-sources terminé : {inserted} nouveau(x), {updated} déjà connu(s).")
+        except Exception as e:
+            st.error(f"Erreur multi-sources : {e}")
+
+    st.divider()
+    st.markdown("### France Travail (optionnel)")
     departments = st.text_input("Départements", value="26,07,38,69,42,44,35,49,85")
     keywords = st.text_area("Requêtes", value="gestionnaire paie\ngestionnaire de paie\ncollaborateur paie\nresponsable paie\ngestionnaire social\nsilae paie\ncabinet comptable paie", height=160)
     max_results = st.slider("Résultats max par requête et département", 10, 80, 30, 10)
@@ -179,9 +194,9 @@ with tabs[7]:
         st.info("Aucun prospect à exporter.")
     else:
         excel_data = build_excel_export(df)
-        st.download_button("Télécharger Excel V12", excel_data, f"ld_prospection_paie_v12_{date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Télécharger Excel V13", excel_data, f"ld_prospection_paie_v13_{date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         csv = df.to_csv(index=False, sep=";").encode("utf-8-sig")
-        st.download_button("Télécharger CSV", csv, f"ld_prospection_paie_v12_{date.today()}.csv", "text/csv")
+        st.download_button("Télécharger CSV", csv, f"ld_prospection_paie_v13_{date.today()}.csv", "text/csv")
 
 with tabs[8]:
     actions = load_actions()
