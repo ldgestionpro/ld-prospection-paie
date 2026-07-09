@@ -6,7 +6,6 @@ def build_mail(row, variant="agent"):
     signal = row.get("signal_besoin") or "besoin paie"
     argument = row.get("argument_commercial") or "sécurisation de la production paie"
     logiciel_phrase = f" J’ai noté la mention de {logiciel}, ce qui peut permettre une prise en main plus rapide." if logiciel else ""
-    site_phrase = f"\nJ’ai également consulté votre site ({row.get('site_web')}) afin de mieux situer votre environnement." if row.get("site_web") else ""
     intro = f"{cabinet} semble recruter actuellement un profil paie à {ville}" if cabinet != "À identifier" else f"Votre cabinet semble recruter actuellement un profil paie à {ville}"
 
     if variant == "court":
@@ -36,7 +35,7 @@ LD Gestion Pro"""
     if variant == "cabinet":
         return f"""Bonjour,
 
-{intro}. Le signal principal que j’ai relevé est : {signal}.{site_phrase}
+{intro}. Le signal principal que j’ai relevé est : {signal}.
 
 Lorsqu’un cabinet recrute en paie, l’enjeu est souvent de maintenir la production sociale sans dégrader les délais clients. LD Gestion Pro peut intervenir en renfort externe ou en marque blanche pour assurer la {argument}.{logiciel_phrase}
 

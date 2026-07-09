@@ -12,12 +12,12 @@ from modules.scoring import (
 )
 
 SOURCES = {
-    "HelloWork": "site:hellowork.com gestionnaire paie cabinet comptable",
-    "APEC": "site:apec.fr gestionnaire paie cabinet comptable",
-    "Welcome": "site:welcometothejungle.com gestionnaire paie cabinet comptable",
-    "Indeed": "site:fr.indeed.com gestionnaire paie cabinet comptable",
-    "LinkedIn Jobs": "site:linkedin.com/jobs gestionnaire paie cabinet comptable",
-    "Cabinets": "cabinet comptable recrute gestionnaire paie silae",
+    "HelloWork": "site:hellowork.com",
+    "APEC": "site:apec.fr",
+    "Welcome": "site:welcometothejungle.com",
+    "Indeed": "site:fr.indeed.com",
+    "LinkedIn Jobs": "site:linkedin.com/jobs",
+    "Sites cabinets": "cabinet comptable recrute",
 }
 
 def tavily_search(query, max_results=8):
@@ -37,7 +37,7 @@ def tavily_search(query, max_results=8):
             },
             timeout=25,
         )
-        if r.status_code >= 400 or not r.text:
+        if r.status_code >= 400 or not (r.text or "").strip():
             return []
         return r.json().get("results", []) or []
     except Exception:
@@ -51,7 +51,7 @@ def guess_department(text):
     return m.group(1) if m else ""
 
 def guess_city(text):
-    cities = ["Lyon", "Villeurbanne", "Dardilly", "Nantes", "Rennes", "Angers", "Valence", "Grenoble", "Saint-Étienne", "Vannes", "La Roche-sur-Yon", "Dijon", "Paris"]
+    cities = ["Lyon", "Villeurbanne", "Dardilly", "Nantes", "Rennes", "Angers", "Valence", "Grenoble", "Saint-Étienne", "Vannes", "La Roche-sur-Yon", "Dijon", "Paris", "Marseille", "Bordeaux", "Toulouse"]
     low = (text or "").lower()
     for c in cities:
         if c.lower() in low:
@@ -84,6 +84,7 @@ def result_to_prospect(item, source):
     recruteur = "Oui" if is_recruiter(company, text) else "Non"
     score = score_offer(text, "CDI", dep, company)
     temp = temperature(score, recruteur, cabinet_detecte, logiciel)
+
     return {
         "created_at": str(date.today()), "updated_at": str(date.today()),
         "source": source, "date_collecte": str(date.today()),
@@ -101,15 +102,16 @@ def result_to_prospect(item, source):
         "dernier_message_linkedin": "", "commentaires": f"Trouvé via moteur multi-sources ({source})",
     }
 
-def run_multi_source_watch(departments, max_results=8):
+def run_multi_source_watch(departments, keywords, max_results=8):
     rows, errors = [], []
     dep_query = " ".join([f"département {d}" for d in departments if d])
-    for source, base_query in SOURCES.items():
-        q = f"{base_query} {dep_query} freelance marque blanche paie"
-        try:
-            results = tavily_search(q, max_results=max_results)
-            rows.extend([result_to_prospect(item, source) for item in results])
-        except Exception as e:
-            errors.append(f"{source}: {e}")
+    for source, source_filter in SOURCES.items():
+        for keyword in keywords:
+            query = f"{source_filter} {keyword} {dep_query} freelance marque blanche paie"
+            try:
+                results = tavily_search(query, max_results=max_results)
+                rows.extend([result_to_prospect(item, source) for item in results])
+            except Exception as e:
+                errors.append(f"{source} / {keyword}: {e}")
     inserted, updated = save_prospects(rows)
     return inserted, updated, errors

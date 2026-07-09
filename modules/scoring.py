@@ -1,13 +1,14 @@
 
 from urllib.parse import quote_plus
 
-STATUSES = ["À contacter", "Contacté", "Relance 1", "Relance 2", "Répondu", "RDV", "Non intéressé", "Hors cible"]
+STATUSES = ["À contacter", "Contacté", "Relance 1", "Relance 2", "Répondu", "RDV", "Client", "Non intéressé", "Hors cible"]
 PRIORITY_DEPARTMENTS = {"26", "07", "38", "69", "42", "44", "35", "49", "85"}
 
 CABINET_SIGNALS = [
     "cabinet comptable", "cabinet d'expertise comptable", "expertise comptable",
     "expert-comptable", "commissariat aux comptes", "fiduciaire",
-    "portefeuille clients", "multi-conventions", "multi conventions", "pôle social"
+    "portefeuille clients", "multi-conventions", "multi conventions", "pôle social",
+    "social", "paie"
 ]
 
 RECRUTER_SIGNALS = [
@@ -24,7 +25,6 @@ KNOWN_COMPANIES = {
     "in extenso": "https://www.inextenso.fr",
     "tgs france": "https://www.tgs-france.fr",
     "cogedis": "https://www.cogedis.com",
-    "compta clemenceau": "https://www.compta-clemenceau.fr",
 }
 
 def normalize(value):
@@ -93,7 +93,7 @@ def score_offer(text, contract, department, company):
     elif "paie" in t:
         score += 15
     if is_cabinet(t):
-        score += 30
+        score += 25
     if "portefeuille" in t or "multi-conventions" in t or "multi conventions" in t:
         score += 10
     if "silae" in t or "silaexpert" in t:
@@ -101,29 +101,27 @@ def score_offer(text, contract, department, company):
     elif any(x in t for x in ["adp", "cegid", "sage", "quadratus", "quadra"]):
         score += 10
     if contract and "cdi" in contract.lower():
-        score += 10
+        score += 8
     if any(x in t for x in ["urgent", "remplacement", "croissance", "création de poste", "creation de poste"]):
         score += 10
     if department in PRIORITY_DEPARTMENTS:
         score += 5
     if is_recruiter(company, t):
-        score -= 20
-    if any(x in t for x in ["industrie", "restaurant", "hôtel", "association"]):
         score -= 10
     if "à identifier" in normalize(company):
-        score -= 10
+        score -= 5
     return max(0, min(score, 100))
 
 def priority(score):
     return "Haute" if score >= 75 else "Moyenne" if score >= 50 else "Faible"
 
 def temperature(score, recruteur, cabinet, logiciel):
-    if recruteur == "Oui":
-        return "À vérifier"
-    if score >= 80 and (cabinet == "Oui" or "Silae" in (logiciel or "")):
+    if score >= 80 and ("Silae" in (logiciel or "") or cabinet == "Oui"):
         return "Chaud"
     if score >= 55:
         return "Tiède"
+    if recruteur == "Oui":
+        return "À vérifier"
     return "Froid"
 
 def potential_ca(score, logiciel, cabinet_detecte):
@@ -140,7 +138,7 @@ def next_action(statut, temperature_label, email_public):
         return "Relance J+7"
     if statut == "Relance 1":
         return "Relance J+21"
-    if statut in ["Répondu", "RDV"]:
+    if statut in ["Répondu", "RDV", "Client"]:
         return "Suivi opportunité"
     return "À qualifier"
 

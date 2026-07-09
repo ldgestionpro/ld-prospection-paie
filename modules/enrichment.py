@@ -1,3 +1,4 @@
+
 import html
 import re
 from urllib.parse import unquote, urlparse, parse_qs
@@ -7,15 +8,8 @@ from modules.config import get_env
 from modules.database import load_prospects, update_enriched
 from modules.scoring import next_action, google_search_url, linkedin_search_url
 
-BLOCKED_DOMAINS = [
-    "google.", "bing.", "yahoo.", "facebook.", "instagram.", "youtube.",
-    "indeed.", "hellowork.", "francetravail.", "pole-emploi.", "linkedin.com/jobs",
-    "meteojob.", "apec.", "welcometothejungle.", "jobijoba.", "talent.com"
-]
-COMMON_CONTACT_PATHS = [
-    "/contact", "/contacts", "/nous-contacter", "/contactez-nous", "/recrutement",
-    "/carrieres", "/carriere", "/nous-rejoindre", "/offres-emploi", "/emploi"
-]
+BLOCKED_DOMAINS = ["google.", "bing.", "yahoo.", "facebook.", "instagram.", "youtube.", "indeed.", "hellowork.", "francetravail.", "pole-emploi.", "linkedin.com/jobs", "meteojob.", "apec.", "welcometothejungle.", "jobijoba.", "talent.com"]
+COMMON_CONTACT_PATHS = ["/contact", "/contacts", "/nous-contacter", "/contactez-nous", "/recrutement", "/carrieres", "/carriere", "/nous-rejoindre", "/offres-emploi", "/emploi"]
 
 def extract_emails(text):
     text = text or ""
@@ -47,61 +41,33 @@ def domain_root(url):
     except Exception:
         return ""
 
-def tavily_search(query, max_results=8):
+def tavily_search(query, max_results=6):
     key = get_env().get("tavily_key", "")
     if not key:
         return []
     try:
-        r = requests.post(
-            "https://api.tavily.com/search",
-            json={
-                "api_key": key,
-                "query": query,
-                "search_depth": "advanced",
-                "max_results": max_results,
-                "include_answer": False,
-                "include_raw_content": False,
-            },
-            timeout=25,
-        )
+        r = requests.post("https://api.tavily.com/search", json={"api_key": key, "query": query, "search_depth": "advanced", "max_results": max_results, "include_answer": False, "include_raw_content": False}, timeout=25)
         if r.status_code >= 400 or not (r.text or "").strip():
             return []
-        data = r.json()
-        return [
-            {"title": i.get("title", ""), "snippet": i.get("content", ""), "link": i.get("url", "")}
-            for i in data.get("results", []) or []
-            if is_useful_url(i.get("url", ""))
-        ]
+        return [{"title": i.get("title",""), "snippet": i.get("content",""), "link": i.get("url","")} for i in r.json().get("results", []) if is_useful_url(i.get("url",""))]
     except Exception:
         return []
 
-def google_custom_search(query, num=8):
+def google_custom_search(query, num=5):
     env = get_env()
     if not env.get("google_key") or not env.get("google_cx"):
         return []
     try:
-        r = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
-            params={"key": env["google_key"], "cx": env["google_cx"], "q": query, "num": num},
-            timeout=20,
-        )
+        r = requests.get("https://www.googleapis.com/customsearch/v1", params={"key": env["google_key"], "cx": env["google_cx"], "q": query, "num": num}, timeout=20)
         if r.status_code >= 400 or not (r.text or "").strip():
             return []
-        return [
-            {"title": i.get("title", ""), "snippet": i.get("snippet", ""), "link": i.get("link", "")}
-            for i in r.json().get("items", []) or []
-        ]
+        return [{"title": i.get("title",""), "snippet": i.get("snippet",""), "link": i.get("link","")} for i in r.json().get("items", []) or []]
     except Exception:
         return []
 
 def duckduckgo_search(query, max_results=8):
     try:
-        r = requests.get(
-            "https://duckduckgo.com/html/",
-            params={"q": query},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=20,
-        )
+        r = requests.get("https://duckduckgo.com/html/", params={"q": query}, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
         if r.status_code >= 400 or not r.text:
             return []
         results = []
@@ -109,8 +75,7 @@ def duckduckgo_search(query, max_results=8):
             href = html.unescape(match.group(1))
             title = re.sub("<.*?>", "", html.unescape(match.group(2))).strip()
             if "uddg=" in href:
-                qs = parse_qs(urlparse(href).query)
-                href = unquote(qs.get("uddg", [href])[0])
+                href = unquote(parse_qs(urlparse(href).query).get("uddg", [href])[0])
             if is_useful_url(href):
                 results.append({"title": title, "snippet": "", "link": href})
             if len(results) >= max_results:
@@ -132,7 +97,6 @@ def fetch_page(url):
 
 def choose_best_site(items, company):
     company_low = (company or "").lower()
-    words = [w for w in re.findall(r"[a-zA-ZÀ-ÿ0-9]+", company_low) if len(w) > 3]
     candidates = []
     for item in items:
         link = item.get("link", "")
@@ -140,14 +104,11 @@ def choose_best_site(items, company):
         if not is_useful_url(link) or not root:
             continue
         score = 0
-        blob = (item.get("title", "") + " " + item.get("snippet", "") + " " + link).lower()
-        for word in words:
-            if word in blob:
-                score += 2
-            if word in root.lower():
-                score += 4
-        if any(k in blob for k in ["cabinet", "expertise comptable", "paie", "contact", "recrutement"]):
-            score += 2
+        blob = (item.get("title","") + " " + item.get("snippet","") + " " + link).lower()
+        for word in re.findall(r"[a-zA-ZÀ-ÿ0-9]+", company_low):
+            if len(word) > 3 and word in blob: score += 2
+            if len(word) > 3 and word in root.lower(): score += 4
+        if any(k in blob for k in ["cabinet", "expertise comptable", "paie", "contact", "recrutement"]): score += 2
         candidates.append((score, root, link))
     if not candidates:
         return "", ""
@@ -155,9 +116,7 @@ def choose_best_site(items, company):
     return candidates[0][1], candidates[0][2]
 
 def get_contact_pages(site_root):
-    if not site_root:
-        return []
-    return [site_root.rstrip("/") + path for path in COMMON_CONTACT_PATHS]
+    return [site_root.rstrip("/") + path for path in COMMON_CONTACT_PATHS] if site_root else []
 
 def enrich_one(row):
     enriched = dict(row)
@@ -168,13 +127,11 @@ def enrich_one(row):
 
     query = f"{company} {ville} cabinet comptable contact recrutement email téléphone"
     items = tavily_search(query, 8)
-    source_used = "Tavily"
+    source = "Tavily"
     if not items:
-        items = google_custom_search(query, 8)
-        source_used = "Google"
+        items = google_custom_search(query, 8); source = "Google"
     if not items:
-        items = duckduckgo_search(query, 8)
-        source_used = "DuckDuckGo"
+        items = duckduckgo_search(query, 8); source = "DuckDuckGo"
     if not items:
         enriched["commentaires"] = ((enriched.get("commentaires") or "") + " | Enrichissement: aucun résultat web").strip(" |")
         return enriched
@@ -183,19 +140,19 @@ def enrich_one(row):
     if site_root and not enriched.get("site_web"):
         enriched["site_web"] = site_root
 
-    linkedin_links = [i.get("link", "") for i in items if "linkedin.com/company" in i.get("link", "")]
+    linkedin_links = [i.get("link","") for i in items if "linkedin.com/company" in i.get("link","")]
     if linkedin_links:
         enriched["linkedin"] = linkedin_links[0]
 
-    texts = [" ".join((i.get("title", "") + " " + i.get("snippet", "")) for i in items)]
+    texts = [" ".join((i.get("title","") + " " + i.get("snippet","")) for i in items)]
     urls_to_try = ([first_url] if first_url else []) + get_contact_pages(enriched.get("site_web", ""))
-    found_contact_page = ""
+    found_contact = ""
     for url in urls_to_try[:10]:
         page = fetch_page(url)
         if page:
             texts.append(clean_html(page))
-            if not found_contact_page and any(k in url.lower() for k in ["contact", "recrut", "carriere", "emploi"]):
-                found_contact_page = url
+            if not found_contact and any(k in url.lower() for k in ["contact", "recrut", "carriere", "emploi"]):
+                found_contact = url
 
     combined = " ".join(texts)
     emails = extract_emails(combined)
@@ -207,10 +164,10 @@ def enrich_one(row):
     if phones and not enriched.get("telephone"):
         enriched["telephone"] = phones[0]
     if not enriched.get("page_contact"):
-        enriched["page_contact"] = found_contact_page or (get_contact_pages(enriched.get("site_web", ""))[0] if enriched.get("site_web") else "")
+        enriched["page_contact"] = found_contact or (get_contact_pages(enriched.get("site_web", ""))[0] if enriched.get("site_web") else "")
 
-    enriched["prochaine_action"] = next_action(enriched.get("statut", "À contacter"), enriched.get("temperature", ""), enriched.get("email_public", ""))
-    enriched["commentaires"] = ((enriched.get("commentaires") or "") + f" | Enrichissement via {source_used}").strip(" |")
+    enriched["prochaine_action"] = next_action(enriched.get("statut","À contacter"), enriched.get("temperature",""), enriched.get("email_public",""))
+    enriched["commentaires"] = ((enriched.get("commentaires") or "") + f" | Enrichissement via {source}").strip(" |")
     return enriched
 
 def enrich_best_prospects(limit=10):
@@ -220,7 +177,6 @@ def enrich_best_prospects(limit=10):
     targets = df[(df["statut"] == "À contacter") & (df["temperature"].isin(["Chaud", "Tiède"]))].head(limit)
     count = 0
     for _, row in targets.iterrows():
-        enriched = enrich_one(row.to_dict())
-        update_enriched(enriched)
+        update_enriched(enrich_one(row.to_dict()))
         count += 1
     return count

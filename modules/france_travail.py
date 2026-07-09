@@ -20,13 +20,13 @@ def _safe_json(response):
     try:
         return response.json()
     except Exception:
-        preview = text[:300].replace("\n", " ")
+        preview = text[:250].replace("\n", " ")
         raise RuntimeError(f"Réponse API non JSON. Statut {response.status_code}. Aperçu : {preview}")
 
 def get_token():
     env = get_env()
     if not env["ft_client_id"] or not env["ft_client_secret"]:
-        raise RuntimeError("Identifiants France Travail manquants dans le fichier .env")
+        raise RuntimeError("Identifiants France Travail manquants.")
     data = {
         "grant_type": "client_credentials",
         "client_id": env["ft_client_id"],
@@ -35,7 +35,7 @@ def get_token():
     }
     r = requests.post(FT_TOKEN_URL, data=data, timeout=30)
     if r.status_code >= 400:
-        preview = (r.text or "")[:300].replace("\n", " ")
+        preview = (r.text or "")[:250].replace("\n", " ")
         raise RuntimeError(f"Erreur token France Travail {r.status_code} : {preview}")
     data_json = _safe_json(r)
     token = data_json.get("access_token")
@@ -50,7 +50,7 @@ def search_offers(token, keywords, department, max_results):
     if r.status_code == 204 or not (r.text or "").strip():
         return []
     if r.status_code >= 400:
-        preview = (r.text or "")[:300].replace("\n", " ")
+        preview = (r.text or "")[:200].replace("\n", " ")
         raise RuntimeError(f"Erreur recherche France Travail {r.status_code} pour '{keywords}' / {department} : {preview}")
     data = _safe_json(r)
     return data.get("resultats", []) or []
@@ -65,7 +65,6 @@ def offer_to_prospect(offer):
     ville = lieu.get("libelle") or ""
     dep = lieu.get("codePostal", "")[:2] if lieu.get("codePostal") else ""
     text = " ".join([title, desc, company, ville, contrat])
-
     score = score_offer(text, contrat, dep, company)
     logiciel = detect_logiciel(text)
     signal = detect_need_signal(text)
@@ -75,48 +74,26 @@ def offer_to_prospect(offer):
     temp = temperature(score, recruteur, cabinet_detecte, logiciel)
     lien = offer.get("origineOffre", {}).get("urlOrigine") or offer.get("urlPostulation") or ""
     site = next((url for key, url in KNOWN_COMPANIES.items() if key in company.lower()), "")
-
     return {
-        "created_at": str(date.today()),
-        "updated_at": str(date.today()),
-        "source": "France Travail",
-        "date_collecte": str(date.today()),
-        "priorite": priority(score),
-        "score": score,
-        "temperature": temp,
+        "created_at": str(date.today()), "updated_at": str(date.today()),
+        "source": "France Travail", "date_collecte": str(date.today()),
+        "priorite": priority(score), "score": score, "temperature": temp,
         "potentiel_ca": potential_ca(score, logiciel, cabinet_detecte),
         "prochaine_action": next_action("À contacter", temp, ""),
-        "cabinet": company,
-        "cabinet_detecte": cabinet_detecte,
-        "recruteur": recruteur,
-        "ville": ville,
-        "departement": dep,
-        "intitule_offre": title,
-        "type_contrat": contrat,
-        "logiciel": logiciel,
-        "signal_besoin": signal,
-        "argument_commercial": argument,
-        "contact_public": "",
-        "email_public": "",
-        "telephone": "",
-        "site_web": site,
-        "linkedin": linkedin_search_url(company, ville),
-        "page_contact": "",
-        "recherche_google": google_search_url(company, ville),
-        "lien_annonce": lien,
-        "statut": "À contacter",
-        "date_contact": "",
-        "relance_1": "",
-        "relance_2": "",
-        "dernier_message": "",
-        "dernier_message_linkedin": "",
-        "commentaires": "",
+        "cabinet": company, "cabinet_detecte": cabinet_detecte, "recruteur": recruteur,
+        "ville": ville, "departement": dep, "intitule_offre": title,
+        "type_contrat": contrat, "logiciel": logiciel, "signal_besoin": signal,
+        "argument_commercial": argument, "contact_public": "", "email_public": "",
+        "telephone": "", "site_web": site, "linkedin": linkedin_search_url(company, ville),
+        "page_contact": "", "recherche_google": google_search_url(company, ville),
+        "lien_annonce": lien, "statut": "À contacter", "date_contact": "",
+        "relance_1": "", "relance_2": "", "dernier_message": "",
+        "dernier_message_linkedin": "", "commentaires": "",
     }
 
 def run_watch(keywords, departments, max_results):
     token = get_token()
-    rows = []
-    errors = []
+    rows, errors = [], []
     for kw in keywords:
         for dep in departments:
             try:

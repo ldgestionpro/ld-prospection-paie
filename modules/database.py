@@ -116,9 +116,9 @@ def save_messages(prospect_id, mail, linkedin):
 def update_enriched(row):
     with db() as conn:
         conn.execute(
-            "UPDATE prospects SET email_public=?, telephone=?, site_web=?, linkedin=?, page_contact=?, prochaine_action=?, updated_at=? WHERE id=?",
+            "UPDATE prospects SET email_public=?, telephone=?, site_web=?, linkedin=?, page_contact=?, prochaine_action=?, commentaires=?, updated_at=? WHERE id=?",
             (row.get("email_public",""), row.get("telephone",""), row.get("site_web",""),
              row.get("linkedin",""), row.get("page_contact",""), row.get("prochaine_action",""),
-             str(date.today()), row["id"])
+             row.get("commentaires",""), str(date.today()), row["id"])
         )
         conn.commit()
