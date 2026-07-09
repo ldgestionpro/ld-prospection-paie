@@ -35,18 +35,25 @@ LD Gestion Pro"""
     if variant == "cabinet":
         return f"""Bonjour,
 
-{intro}. Le signal principal que j’ai relevé est : {signal}.
+J'ai remarqué que vous recrutez actuellement un profil paie{" à " + ville if ville else ""}.
 
-Lorsqu’un cabinet recrute en paie, l’enjeu est souvent de maintenir la production sociale sans dégrader les délais clients. LD Gestion Pro peut intervenir en renfort externe ou en marque blanche pour assurer la {argument}.{logiciel_phrase}
+Lorsqu'un cabinet renforce son équipe paie, il est parfois utile de pouvoir compter sur un renfort opérationnel afin de maintenir la qualité de service et respecter les délais.
 
-Mon intervention reste discrète, alignée sur vos process, et peut couvrir les bulletins, DSN, entrées/sorties, dossiers salariés et reprise de dossiers.
+Gestionnaire de paie indépendante, j'interviens en marque blanche auprès des cabinets comptables pour prendre en charge la production des bulletins, les DSN, l'administration du personnel, les entrées et sorties des salariés ainsi que la reprise de dossiers.{logiciel_phrase}
 
-Seriez-vous disponible pour un échange rapide cette semaine ?
+Mon intervention est totalement flexible : quelques jours, quelques semaines ou plus longtemps, selon vos besoins.
+
+Si un renfort ponctuel peut vous être utile pendant votre recrutement, je serais ravie d'échanger avec vous.
+
+Bien cordialement,
 
 Lucia
 LD Gestion Pro
 Gestionnaire de paie confirmée – partenaire externe
-Votre sérénité, ma priorité"""
+Votre sérénité, ma priorité.
+"""
+
+
 
     return f"""Bonjour,
 
