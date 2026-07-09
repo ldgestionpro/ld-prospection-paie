@@ -1,5 +1,3 @@
-def _clean(value):
-    return (value or "").strip()
 
 def build_mail(row, variant="agent"):
     ville = row.get("ville") or ""
