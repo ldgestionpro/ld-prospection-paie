@@ -153,3 +153,38 @@ def update_prospect_details(prospect_id, updates):
         conn.execute(f"UPDATE prospects SET {set_clause} WHERE id=?", list(clean_updates.values()) + [prospect_id])
         conn.commit()
     add_action(prospect_id, "Fiche prospect", "Mise à jour manuelle")
+
+
+def quick_action(prospect_id, action_type):
+    today = str(date.today())
+    status_map = {
+        "Mail envoyé": "Contacté",
+        "LinkedIn envoyé": "Contacté",
+        "Appel effectué": "Contacté",
+        "Relance effectuée": "Relance 1",
+        "RDV obtenu": "RDV",
+        "Devenu client": "Client",
+        "Refus": "Non intéressé",
+    }
+    statut = status_map.get(action_type, "Contacté")
+    fields = {"statut": statut, "updated_at": today}
+
+    if action_type in ["Mail envoyé", "LinkedIn envoyé", "Appel effectué"]:
+        fields["date_contact"] = today
+        fields["relance_1"] = str(date.today() + timedelta(days=7))
+        fields["relance_2"] = str(date.today() + timedelta(days=21))
+
+    if action_type == "Relance effectuée":
+        fields["relance_1"] = today
+        fields["relance_2"] = str(date.today() + timedelta(days=14))
+
+    with db() as conn:
+        current = conn.execute("SELECT temperature, email_public FROM prospects WHERE id=?", (prospect_id,)).fetchone()
+        temp = current["temperature"] if current else ""
+        email = current["email_public"] if current else ""
+        fields["prochaine_action"] = next_action(statut, temp, email)
+        set_clause = ", ".join([f"{k}=?" for k in fields])
+        conn.execute(f"UPDATE prospects SET {set_clause} WHERE id=?", list(fields.values()) + [prospect_id])
+        conn.commit()
+
+    add_action(prospect_id, action_type, f"{action_type} le {today}")

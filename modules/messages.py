@@ -75,3 +75,16 @@ J’ai vu que votre structure recrute actuellement sur la paie à {ville}. Le be
 J’interviens en renfort externe / marque blanche pour les cabinets comptables afin de sécuriser la production pendant les périodes de recrutement ou de surcharge{logiciel_part}.
 
 Est-ce qu’un soutien ponctuel pourrait vous être utile ?"""
+
+
+def build_subject(row):
+    ville = _clean(row.get("ville"))
+    logiciel = _clean(row.get("logiciel"))
+
+    if logiciel and ville:
+        return f"Renfort paie {logiciel} pendant votre recrutement à {ville}"
+    if logiciel:
+        return f"Renfort paie {logiciel} pendant votre recrutement"
+    if ville:
+        return f"Renfort paie pendant votre recrutement à {ville}"
+    return "Renfort paie pendant votre recrutement"

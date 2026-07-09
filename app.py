@@ -12,7 +12,7 @@ from views.analysis import render_analysis
 from views.export_view import render_export
 from views.history import render_history
 
-APP_VERSION = "V15.0"
+APP_VERSION = "V15.1"
 
 st.set_page_config(
     page_title=f"LD Prospection Paie {APP_VERSION}",
@@ -34,7 +34,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<p class="ld-title">LD Prospection Paie - V15</p>', unsafe_allow_html=True)
+st.markdown('<p class="ld-title">LD Prospection Paie - V15.1</p>', unsafe_allow_html=True)
 st.markdown(
     '<p class="ld-subtitle">Assistant commercial multi-sources pour détecter, qualifier, enrichir et suivre tes prospects paie.</p>',
     unsafe_allow_html=True,

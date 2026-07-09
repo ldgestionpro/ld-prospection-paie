@@ -1,11 +1,10 @@
-import streamlit as st
-from modules.database import load_prospects, update_prospect_details
-from modules.scoring import STATUSES
 
+import streamlit as st
+from modules.database import load_prospects, update_prospect_details, quick_action
+from modules.scoring import STATUSES
 
 def _select_index(options, value, default=0):
     return options.index(value) if value in options else default
-
 
 def render_crm():
     df = load_prospects()
@@ -33,22 +32,56 @@ def render_crm():
         st.info("Aucun prospect ne correspond aux filtres.")
         return
 
-    st.dataframe(view[["id", "source", "temperature", "priorite", "score", "potentiel_ca", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact", "linkedin", "statut", "relance_1", "relance_2", "commentaires"]], use_container_width=True, hide_index=True)
+    st.dataframe(
+        view[["id", "source", "temperature", "priorite", "score", "potentiel_ca", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact", "linkedin", "statut", "relance_1", "relance_2", "commentaires"]],
+        use_container_width=True,
+        hide_index=True,
+    )
 
     st.divider()
     st.markdown("### Fiche prospect modifiable")
 
     ids = view["id"].astype(int).tolist()
-    selected_id = st.selectbox("Prospect à modifier", ids, format_func=lambda x: f"#{x} — {df.loc[df['id'] == x, 'cabinet'].iloc[0]}")
+    selected_id = st.selectbox(
+        "Prospect à modifier",
+        ids,
+        format_func=lambda x: f"#{x} — {df.loc[df['id'] == x, 'cabinet'].iloc[0]}"
+    )
     selected = df[df["id"] == int(selected_id)]
-
     if selected.empty:
         st.warning("Aucun prospect trouvé avec cet ID.")
         return
 
     prospect = selected.iloc[0].to_dict()
-    col1, col2 = st.columns(2)
 
+    st.markdown("#### Liens rapides")
+    l1, l2, l3, l4 = st.columns(4)
+    if prospect.get("site_web"):
+        l1.link_button("Site web", prospect.get("site_web"))
+    if prospect.get("page_contact"):
+        l2.link_button("Page contact", prospect.get("page_contact"))
+    if prospect.get("linkedin"):
+        l3.link_button("LinkedIn", prospect.get("linkedin"))
+    if prospect.get("recherche_google"):
+        l4.link_button("Recherche Google", prospect.get("recherche_google"))
+
+    st.markdown("#### Actions rapides")
+    a1, a2, a3, a4, a5, a6 = st.columns(6)
+    actions = [
+        (a1, "Mail envoyé"),
+        (a2, "LinkedIn envoyé"),
+        (a3, "Appel effectué"),
+        (a4, "Relance effectuée"),
+        (a5, "RDV obtenu"),
+        (a6, "Devenu client"),
+    ]
+    for col, label in actions:
+        with col:
+            if st.button(label):
+                quick_action(int(selected_id), label)
+                st.success(f"{label} enregistré.")
+
+    col1, col2 = st.columns(2)
     with col1:
         cabinet = st.text_input("Cabinet", value=prospect.get("cabinet", ""))
         contact_public = st.text_input("Contact", value=prospect.get("contact_public", ""))
@@ -73,5 +106,24 @@ def render_crm():
     commentaires = st.text_area("Notes / commentaires", value=prospect.get("commentaires", ""), height=160)
 
     if st.button("💾 Enregistrer la fiche prospect"):
-        update_prospect_details(int(selected_id), {"cabinet": cabinet, "contact_public": contact_public, "email_public": email_public, "telephone": telephone, "site_web": site_web, "linkedin": linkedin, "page_contact": page_contact, "statut": statut, "priorite": priorite, "temperature": temperature, "potentiel_ca": potentiel_ca, "date_contact": date_contact, "relance_1": relance_1, "relance_2": relance_2, "commentaires": commentaires})
+        update_prospect_details(
+            int(selected_id),
+            {
+                "cabinet": cabinet,
+                "contact_public": contact_public,
+                "email_public": email_public,
+                "telephone": telephone,
+                "site_web": site_web,
+                "linkedin": linkedin,
+                "page_contact": page_contact,
+                "statut": statut,
+                "priorite": priorite,
+                "temperature": temperature,
+                "potentiel_ca": potentiel_ca,
+                "date_contact": date_contact,
+                "relance_1": relance_1,
+                "relance_2": relance_2,
+                "commentaires": commentaires,
+            },
+        )
         st.success("Fiche prospect enregistrée.")
