@@ -30,9 +30,16 @@ st.markdown('<p class="ld-subtitle">Assistant commercial pour trouver, qualifier
 status = env_status()
 c1, c2 = st.columns(2)
 with c1:
-    st.success("France Travail connecté.") if status.get("france_travail") else st.error("France Travail non connecté : vérifie les secrets / .env.")
+    if status.get("france_travail"):
+        st.success("✅ France Travail connecté.")
+    else:
+        st.error("❌ France Travail non connecté : vérifie les secrets.")
+
 with c2:
-    st.success("Enrichissement avancé activé.") if (status.get("tavily") or status.get("google")) else st.info("Enrichissement en secours : DuckDuckGo + liens Google/LinkedIn.")
+    if status.get("tavily") or status.get("google"):
+        st.success("✅ Enrichissement avancé activé.")
+    else:
+        st.info("ℹ️ Enrichissement en secours : DuckDuckGo + liens Google/LinkedIn.")
 
 tabs = st.tabs(["🏠 Dashboard", "🤖 Agent", "🗓️ Actions", "🏢 CRM", "✉️ Messages", "🌐 Enrichir", "📊 Analyse", "📤 Export", "🧾 Historique"])
 
