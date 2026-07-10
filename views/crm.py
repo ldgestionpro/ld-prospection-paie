@@ -3,6 +3,21 @@ import streamlit as st
 from modules.database import load_prospects, update_prospect_details, quick_action
 from modules.scoring import STATUSES
 
+def colorer_ligne(row):
+    couleurs = {
+        "Contacté": "background-color: #d1fae5; color: #065f46;",
+        "Relance 1": "background-color: #ffedd5; color: #9a3412;",
+        "Relance 2": "background-color: #fed7aa; color: #9a3412;",
+        "Répondu": "background-color: #dbeafe; color: #1e40af;",
+        "RDV": "background-color: #ede9fe; color: #5b21b6;",
+        "Client": "background-color: #86efac; color: #14532d;",
+        "Non intéressé": "background-color: #e5e7eb; color: #4b5563;",
+        "Hors cible": "background-color: #e5e7eb; color: #4b5563;",
+    }
+
+    style = couleurs.get(row.get("statut"), "")
+    return [style] * len(row)
+
 def _select_index(options, value, default=0):
     return options.index(value) if value in options else default
 
@@ -32,8 +47,35 @@ def render_crm():
         st.info("Aucun prospect ne correspond aux filtres.")
         return
 
+    colonnes_crm = [
+        "id",
+        "source",
+        "temperature",
+        "priorite",
+        "score",
+        "potentiel_ca",
+        "prochaine_action",
+        "signal_besoin",
+        "cabinet",
+        "ville",
+        "logiciel",
+        "contact_public",
+        "email_public",
+        "telephone",
+        "site_web",
+        "page_contact",
+        "linkedin",
+        "statut",
+        "relance_1",
+        "relance_2",
+        "commentaires",
+    ]
+
+    tableau_crm = view[colonnes_crm]
+    tableau_colore = tableau_crm.style.apply(colorer_ligne, axis=1)
+
     st.dataframe(
-        view[["id", "source", "temperature", "priorite", "score", "potentiel_ca", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact", "linkedin", "statut", "relance_1", "relance_2", "commentaires"]],
+        tableau_colore,
         use_container_width=True,
         hide_index=True,
     )
