@@ -11,8 +11,9 @@ from views.enrich import render_enrich
 from views.analysis import render_analysis
 from views.export_view import render_export
 from views.history import render_history
+from views.campaigns import render_campaigns
 
-APP_VERSION = "V16.0"
+APP_VERSION = "V17.0"
 
 st.set_page_config(
     page_title=f"LD Prospection Paie {APP_VERSION}",
@@ -34,7 +35,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<p class="ld-title">LD Prospection Paie - V16</p>', unsafe_allow_html=True)
+st.markdown('<p class="ld-title">LD Prospection Paie - V17</p>', unsafe_allow_html=True)
 st.markdown(
     '<p class="ld-subtitle">Assistant commercial multi-sources pour détecter, qualifier, enrichir et suivre tes prospects paie.</p>',
     unsafe_allow_html=True,
@@ -81,3 +82,7 @@ with tabs[7]:
     render_export()
 with tabs[8]:
     render_history()
+
+
+with tabs[9]:
+    render_campaigns()

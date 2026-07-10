@@ -1,22 +1,7 @@
 
 import streamlit as st
-from modules.database import load_prospects, update_prospect_details, quick_action
+from modules.database import load_prospects, update_prospect_details, quick_action, load_campaigns, latest_campaign_id, set_processed
 from modules.scoring import STATUSES
-
-def colorer_ligne(row):
-    couleurs = {
-        "Contacté": "background-color: #d1fae5; color: #065f46;",
-        "Relance 1": "background-color: #ffedd5; color: #9a3412;",
-        "Relance 2": "background-color: #fed7aa; color: #9a3412;",
-        "Répondu": "background-color: #dbeafe; color: #1e40af;",
-        "RDV": "background-color: #ede9fe; color: #5b21b6;",
-        "Client": "background-color: #86efac; color: #14532d;",
-        "Non intéressé": "background-color: #e5e7eb; color: #4b5563;",
-        "Hors cible": "background-color: #e5e7eb; color: #4b5563;",
-    }
-
-    style = couleurs.get(row.get("statut"), "")
-    return [style] * len(row)
 
 def _select_index(options, value, default=0):
     return options.index(value) if value in options else default
@@ -35,47 +20,55 @@ def render_crm():
     statut_filter = f3.multiselect("Statut", STATUSES, default=[])
     only_enriched = f4.checkbox("Enrichis uniquement")
 
+    campaigns = load_campaigns()
+    campaign_options = ["Toutes", "Dernière campagne"]
+    if not campaigns.empty:
+        campaign_options += [
+            f"Campagne #{int(value)}"
+            for value in campaigns["id"].tolist()
+        ]
+
+    campaign_filter = st.selectbox("Campagne", campaign_options)
+    hide_processed = st.checkbox(
+        "Masquer les prospects traités",
+        value=False,
+    )
+
     view = df[df["score"] >= min_score].copy()
     if temp_filter:
         view = view[view["temperature"].isin(temp_filter)]
     if statut_filter:
         view = view[view["statut"].isin(statut_filter)]
     if only_enriched:
-        view = view[(view["site_web"].fillna("") != "") | (view["email_public"].fillna("") != "") | (view["telephone"].fillna("") != "")]
+        view = view[
+            (view["site_web"].fillna("") != "")
+            | (view["email_public"].fillna("") != "")
+            | (view["telephone"].fillna("") != "")
+        ]
+
+    if campaign_filter == "Dernière campagne":
+        campaign_id = latest_campaign_id()
+        if campaign_id is not None:
+            view = view[
+                view["campaign_id"].astype(str) == str(campaign_id)
+            ]
+    elif campaign_filter.startswith("Campagne #"):
+        campaign_id = campaign_filter.replace("Campagne #", "")
+        view = view[
+            view["campaign_id"].astype(str) == campaign_id
+        ]
+
+    if hide_processed:
+        view = view[
+            view["is_processed"].fillna("0").astype(str) != "1"
+        ]
 
     if view.empty:
         st.info("Aucun prospect ne correspond aux filtres.")
         return
 
-    colonnes_crm = [
-        "id",
-        "source",
-        "temperature",
-        "priorite",
-        "score",
-        "potentiel_ca",
-        "prochaine_action",
-        "signal_besoin",
-        "cabinet",
-        "ville",
-        "logiciel",
-        "contact_public",
-        "email_public",
-        "telephone",
-        "site_web",
-        "page_contact",
-        "linkedin",
-        "statut",
-        "relance_1",
-        "relance_2",
-        "commentaires",
-    ]
-
-    tableau_crm = view[colonnes_crm]
-    tableau_colore = tableau_crm.style.apply(colorer_ligne, axis=1)
-
     st.dataframe(
-        tableau_colore,
+        view[["id", "campaign_id", "source", "temperature", "priorite", "score", "potentiel_ca", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact", "linkedin", "statut", "relance_1", "relance_2", "commentaires"]],
         use_container_width=True,
         hide_index=True,
     )
@@ -95,6 +88,21 @@ def render_crm():
         return
 
     prospect = selected.iloc[0].to_dict()
+
+    st.markdown("#### Suivi")
+    already_processed = (
+        str(prospect.get("is_processed", "0")) == "1"
+    )
+
+    if already_processed:
+        st.success("✅ Prospect déjà traité")
+        if st.button("Réactiver ce prospect"):
+            set_processed(int(selected_id), False)
+            st.success("Prospect réactivé.")
+    else:
+        if st.button("✔ Marquer comme traité"):
+            set_processed(int(selected_id), True)
+            st.success("Prospect marqué comme traité.")
 
     st.markdown("#### Liens rapides")
     l1, l2, l3, l4 = st.columns(4)

@@ -6,7 +6,7 @@ import requests
 from urllib.parse import unquote, urlparse, parse_qs
 
 from modules.config import get_env
-from modules.database import save_prospects
+from modules.database import save_prospects, create_campaign, update_campaign_counts
 from modules.scoring import (
     clean_company, detect_logiciel, detect_need_signal, google_search_url,
     linkedin_search_url, potential_ca, priority, sales_argument, score_offer,
@@ -170,7 +170,7 @@ def guess_company(title, content):
             return clean_company(clean)
     return "À identifier"
 
-def result_to_prospect(item, source):
+def result_to_prospect(item, source, campaign_id=None):
     title = item.get("title", "") or ""
     content = item.get("content", "") or item.get("snippet", "") or ""
     url = item.get("url", "") or item.get("link", "") or ""
@@ -221,7 +221,9 @@ def result_to_prospect(item, source):
         "relance_2": "",
         "dernier_message": "",
         "dernier_message_linkedin": "",
-        "commentaires": f"Trouvé via moteur V16 ({source})",
+        "commentaires": f"Trouvé via moteur V17 ({source})",
+        "campaign_id": str(campaign_id or ""),
+        "is_processed": "0",
     }
 
 def build_queries(departments, keywords):
@@ -238,8 +240,8 @@ def run_multi_source_watch(departments, keywords, max_results=8):
     rows, errors = [], []
     seen_urls = set()
 
-    queries = build_queries(departments, keywords)
-    queries = queries[:80]  # limite de sécurité
+    campaign_id = create_campaign("Multi-sources", departments, keywords)
+    queries = build_queries(departments, keywords)[:80]
 
     for source_name, query in queries:
         try:
@@ -249,11 +251,20 @@ def run_multi_source_watch(departments, keywords, max_results=8):
                 if not url or url in seen_urls:
                     continue
                 seen_urls.add(url)
-                rows.append(result_to_prospect(item, f"{source_name} / {engine}"))
-        except Exception as e:
-            errors.append(f"{source_name}: {e}")
+                rows.append(
+                    result_to_prospect(
+                        item,
+                        f"{source_name} / {engine}",
+                        campaign_id=campaign_id,
+                    )
+                )
+        except Exception as error:
+            errors.append(f"{source_name}: {error}")
 
     inserted, updated = save_prospects(rows)
+    update_campaign_counts(campaign_id, inserted, updated)
+
     if not rows and not errors:
-        errors.append("Aucun résultat exploitable trouvé. Essaye un seul département ou des requêtes plus larges : paie, silae, gestionnaire de paie.")
+        errors.append("Aucun résultat exploitable trouvé.")
+
     return inserted, updated, errors

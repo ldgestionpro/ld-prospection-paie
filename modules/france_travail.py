@@ -3,7 +3,7 @@ from datetime import date
 import requests
 
 from modules.config import get_env
-from modules.database import save_prospects
+from modules.database import save_prospects, create_campaign, update_campaign_counts
 from modules.scoring import (
     clean_company, detect_logiciel, detect_need_signal, google_search_url, is_cabinet,
     is_recruiter, linkedin_search_url, potential_ca, priority, sales_argument,
@@ -55,7 +55,7 @@ def search_offers(token, keywords, department, max_results):
     data = _safe_json(r)
     return data.get("resultats", []) or []
 
-def offer_to_prospect(offer):
+def offer_to_prospect(offer, campaign_id=None):
     entreprise = offer.get("entreprise") or {}
     lieu = offer.get("lieuTravail") or {}
     contrat = offer.get("typeContrat") or ""
@@ -89,17 +89,37 @@ def offer_to_prospect(offer):
         "lien_annonce": lien, "statut": "À contacter", "date_contact": "",
         "relance_1": "", "relance_2": "", "dernier_message": "",
         "dernier_message_linkedin": "", "commentaires": "",
+        "campaign_id": str(campaign_id or ""),
+        "is_processed": "0",
     }
 
 def run_watch(keywords, departments, max_results):
     token = get_token()
     rows, errors = [], []
-    for kw in keywords:
-        for dep in departments:
+
+    campaign_id = create_campaign("France Travail", departments, keywords)
+
+    for keyword in keywords:
+        for department in departments:
             try:
-                offers = search_offers(token, kw, dep, max_results)
-                rows.extend([offer_to_prospect(o) for o in offers])
-            except Exception as e:
-                errors.append(f"{kw} / {dep} : {e}")
+                offers = search_offers(
+                    token,
+                    keyword,
+                    department,
+                    max_results,
+                )
+                rows.extend(
+                    [
+                        offer_to_prospect(
+                            offer,
+                            campaign_id=campaign_id,
+                        )
+                        for offer in offers
+                    ]
+                )
+            except Exception as error:
+                errors.append(f"{keyword} / {department} : {error}")
+
     inserted, updated = save_prospects(rows)
+    update_campaign_counts(campaign_id, inserted, updated)
     return inserted, updated, errors

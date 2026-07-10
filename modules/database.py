@@ -15,7 +15,7 @@ COLUMNS = [
     "departement", "intitule_offre", "type_contrat", "logiciel", "signal_besoin",
     "argument_commercial", "contact_public", "email_public", "telephone", "site_web",
     "linkedin", "page_contact", "recherche_google", "lien_annonce", "statut", "date_contact",
-    "relance_1", "relance_2", "dernier_message", "dernier_message_linkedin", "commentaires"
+    "relance_1", "relance_2", "dernier_message", "dernier_message_linkedin", "commentaires", "campaign_id", "is_processed"
 ]
 
 def db():
@@ -44,11 +44,25 @@ def init_db():
         argument_commercial TEXT, contact_public TEXT, email_public TEXT, telephone TEXT,
         site_web TEXT, linkedin TEXT, page_contact TEXT, recherche_google TEXT,
         lien_annonce TEXT UNIQUE, statut TEXT, date_contact TEXT, relance_1 TEXT,
-        relance_2 TEXT, dernier_message TEXT, dernier_message_linkedin TEXT, commentaires TEXT
+        relance_2 TEXT, dernier_message TEXT, dernier_message_linkedin TEXT, commentaires TEXT, campaign_id TEXT, is_processed TEXT
     """
     with db() as conn:
         conn.execute(f"CREATE TABLE IF NOT EXISTS prospects ({fields})")
         _ensure_columns(conn)
+
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            source TEXT,
+            departments TEXT,
+            keywords TEXT,
+            new_count INTEGER DEFAULT 0,
+            known_count INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Ouverte'
+        )
+        """)
+
         conn.execute("""
         CREATE TABLE IF NOT EXISTS actions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,3 +202,71 @@ def quick_action(prospect_id, action_type):
         conn.commit()
 
     add_action(prospect_id, action_type, f"{action_type} le {today}")
+
+
+def create_campaign(source, departments, keywords):
+    with db() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO campaigns
+            (created_at, source, departments, keywords, new_count, known_count, status)
+            VALUES (?, ?, ?, ?, 0, 0, 'Ouverte')
+            """,
+            (
+                str(date.today()),
+                source,
+                ",".join(departments or []),
+                "\n".join(keywords or []),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_campaign_counts(campaign_id, new_count, known_count):
+    with db() as conn:
+        conn.execute(
+            "UPDATE campaigns SET new_count=?, known_count=? WHERE id=?",
+            (int(new_count), int(known_count), int(campaign_id)),
+        )
+        conn.commit()
+
+
+def load_campaigns():
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM campaigns ORDER BY id DESC"
+        ).fetchall()
+    return pd.DataFrame([dict(r) for r in rows])
+
+
+def latest_campaign_id():
+    with db() as conn:
+        row = conn.execute(
+            "SELECT id FROM campaigns ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return int(row["id"]) if row else None
+
+
+def set_processed(prospect_id, processed=True):
+    value = "1" if processed else "0"
+    with db() as conn:
+        conn.execute(
+            "UPDATE prospects SET is_processed=?, updated_at=? WHERE id=?",
+            (value, str(date.today()), int(prospect_id)),
+        )
+        conn.commit()
+    add_action(
+        prospect_id,
+        "Prospect traité" if processed else "Prospect réactivé",
+        "Mise à jour manuelle",
+    )
+
+
+def close_campaign(campaign_id):
+    with db() as conn:
+        conn.execute(
+            "UPDATE campaigns SET status='Clôturée' WHERE id=?",
+            (int(campaign_id),),
+        )
+        conn.commit()
