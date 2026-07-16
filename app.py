@@ -13,7 +13,7 @@ from views.export_view import render_export
 from views.history import render_history
 from views.campaigns import render_campaigns
 
-APP_VERSION = "V17.0"
+APP_VERSION = "V19.1"
 
 st.set_page_config(
     page_title=f"LD Prospection Paie {APP_VERSION}",
@@ -35,7 +35,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<p class="ld-title">LD Prospection Paie - V17</p>', unsafe_allow_html=True)
+st.markdown(
+    '<p class="ld-title">LD Prospection Paie - V19.1</p>',
+    unsafe_allow_html=True,
+)
 st.markdown(
     '<p class="ld-subtitle">Assistant commercial multi-sources pour détecter, qualifier, enrichir et suivre tes prospects paie.</p>',
     unsafe_allow_html=True,
@@ -43,46 +46,66 @@ st.markdown(
 
 status = env_status()
 c1, c2, c3 = st.columns(3)
+
 with c1:
     if status.get("france_travail"):
         st.success("✅ France Travail connecté")
     else:
         st.warning("⚠️ France Travail indisponible")
+
 with c2:
     if status.get("tavily"):
         st.success("✅ Tavily connecté")
     else:
         st.warning("⚠️ Tavily non configuré")
+
 with c3:
     if status.get("google"):
         st.success("✅ Google connecté")
     else:
         st.info("ℹ️ Google optionnel")
 
-tabs = st.tabs([
-    "🏠 Tableau de bord", "🤖 Agent", "🗓️ Actions", "🏢 CRM", "✉️ Messages",
-    "🌐 Enrichir", "📊 Analyse", "📤 Export", "🧾 Historique",
-])
+tabs = st.tabs(
+    [
+        "🏠 Tableau de bord",
+        "🤖 Agent",
+        "🗓️ Actions",
+        "🏢 CRM",
+        "✉️ Messages",
+        "🌐 Enrichir",
+        "📊 Analyse",
+        "📤 Export",
+        "🧾 Historique",
+        "📋 Campagnes",
+    ]
+)
 
 with tabs[0]:
     render_dashboard()
+
 with tabs[1]:
     render_agent()
+
 with tabs[2]:
     render_actions()
+
 with tabs[3]:
     render_crm()
+
 with tabs[4]:
     render_messages()
+
 with tabs[5]:
     render_enrich()
+
 with tabs[6]:
     render_analysis()
+
 with tabs[7]:
     render_export()
+
 with tabs[8]:
     render_history()
-
 
 with tabs[9]:
     render_campaigns()

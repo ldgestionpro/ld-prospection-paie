@@ -5,20 +5,20 @@ from modules.multi_source import run_multi_source_watch
 
 
 def render_agent():
-    st.subheader("Agent de veille V16")
+    st.subheader("Agent de veille V19")
     st.markdown("### 🚀 Moteur multi-sources recommandé")
     st.caption("Utilise Tavily pour rechercher sur plusieurs sources publiques, sans dépendre uniquement de France Travail.")
     ms_departments = st.text_input("Départements", value="26,07,38,69,42,44,35,49,85", key="ms_departments")
     ms_keywords = st.text_area(
         "Requêtes multi-sources",
-        value="gestionnaire de paie\ngestionnaire paie\ncollaborateur paie\nresponsable paie\nsilae paie\ncabinet comptable recrute paie",
+        value="gestionnaire de paie\ngestionnaire paie\ncollaborateur paie\nresponsable paie\nréférent paie\nsilae paie\nemploi paie\noffre paie",
         height=140,
         key="ms_keywords",
     )
     ms_max = st.slider("Résultats max par source", 3, 20, 8, 1)
     enrich_after_ms = st.checkbox("Enrichir automatiquement les 10 meilleurs après la recherche", value=True)
 
-    if st.button("🚀 Lancer le moteur multi-sources V16"):
+    if st.button("🚀 Lancer le moteur multi-sources V19"):
         try:
             dep_list = [d.strip().zfill(2) for d in ms_departments.split(",") if d.strip().isdigit()]
             kw_list = [k.strip() for k in ms_keywords.splitlines() if k.strip()]

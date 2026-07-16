@@ -8,4 +8,4 @@ def render_history():
     if actions.empty:
         st.info("Aucune action.")
     else:
-        st.dataframe(actions, use_container_width=True, hide_index=True)
+        st.dataframe(actions, width="stretch", hide_index=True)

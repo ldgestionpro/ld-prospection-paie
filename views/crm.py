@@ -1,10 +1,35 @@
-
 import streamlit as st
-from modules.database import load_prospects, update_prospect_details, quick_action, load_campaigns, latest_campaign_id, set_processed
+
+from modules.database import (
+    load_prospects,
+    update_prospect_details,
+    quick_action,
+    load_campaigns,
+    latest_campaign_id,
+    set_processed,
+)
 from modules.scoring import STATUSES
+
+
+def colorer_ligne(row):
+    couleurs = {
+        "Contacté": "background-color: #d1fae5; color: #065f46;",
+        "Relance 1": "background-color: #ffedd5; color: #9a3412;",
+        "Relance 2": "background-color: #fed7aa; color: #9a3412;",
+        "Répondu": "background-color: #dbeafe; color: #1e40af;",
+        "RDV": "background-color: #ede9fe; color: #5b21b6;",
+        "Client": "background-color: #86efac; color: #14532d;",
+        "Non intéressé": "background-color: #e5e7eb; color: #4b5563;",
+        "Hors cible": "background-color: #e5e7eb; color: #4b5563;",
+    }
+
+    style = couleurs.get(row.get("statut"), "")
+    return [style] * len(row)
+
 
 def _select_index(options, value, default=0):
     return options.index(value) if value in options else default
+
 
 def render_crm():
     df = load_prospects()
@@ -16,12 +41,17 @@ def render_crm():
 
     f1, f2, f3, f4 = st.columns(4)
     min_score = f1.slider("Score minimum", 0, 100, 50, 5)
-    temp_filter = f2.multiselect("Température", ["Chaud", "Tiède", "Froid", "À vérifier"], default=[])
+    temp_filter = f2.multiselect(
+        "Température",
+        ["Chaud", "Tiède", "Froid", "À vérifier"],
+        default=[],
+    )
     statut_filter = f3.multiselect("Statut", STATUSES, default=[])
     only_enriched = f4.checkbox("Enrichis uniquement")
 
     campaigns = load_campaigns()
     campaign_options = ["Toutes", "Dernière campagne"]
+
     if not campaigns.empty:
         campaign_options += [
             f"Campagne #{int(value)}"
@@ -29,16 +59,16 @@ def render_crm():
         ]
 
     campaign_filter = st.selectbox("Campagne", campaign_options)
-    hide_processed = st.checkbox(
-        "Masquer les prospects traités",
-        value=False,
-    )
+    hide_processed = st.checkbox("Masquer les prospects traités", value=False)
 
     view = df[df["score"] >= min_score].copy()
+
     if temp_filter:
         view = view[view["temperature"].isin(temp_filter)]
+
     if statut_filter:
         view = view[view["statut"].isin(statut_filter)]
+
     if only_enriched:
         view = view[
             (view["site_web"].fillna("") != "")
@@ -49,27 +79,50 @@ def render_crm():
     if campaign_filter == "Dernière campagne":
         campaign_id = latest_campaign_id()
         if campaign_id is not None:
-            view = view[
-                view["campaign_id"].astype(str) == str(campaign_id)
-            ]
+            view = view[view["campaign_id"].astype(str) == str(campaign_id)]
+
     elif campaign_filter.startswith("Campagne #"):
         campaign_id = campaign_filter.replace("Campagne #", "")
-        view = view[
-            view["campaign_id"].astype(str) == campaign_id
-        ]
+        view = view[view["campaign_id"].astype(str) == campaign_id]
 
     if hide_processed:
-        view = view[
-            view["is_processed"].fillna("0").astype(str) != "1"
-        ]
+        view = view[view["is_processed"].fillna("0").astype(str) != "1"]
 
     if view.empty:
         st.info("Aucun prospect ne correspond aux filtres.")
         return
 
+    colonnes_crm = [
+        "id",
+        "campaign_id",
+        "source",
+        "temperature",
+        "priorite",
+        "score",
+        "potentiel_ca",
+        "prochaine_action",
+        "signal_besoin",
+        "cabinet",
+        "ville",
+        "logiciel",
+        "contact_public",
+        "email_public",
+        "telephone",
+        "site_web",
+        "page_contact",
+        "linkedin",
+        "statut",
+        "relance_1",
+        "relance_2",
+        "commentaires",
+    ]
+
+    tableau_crm = view[colonnes_crm]
+    tableau_colore = tableau_crm.style.apply(colorer_ligne, axis=1)
+
     st.dataframe(
-        view[["id", "campaign_id", "source", "temperature", "priorite", "score", "potentiel_ca", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact", "linkedin", "statut", "relance_1", "relance_2", "commentaires"]],
-        use_container_width=True,
+        tableau_colore,
+        width="stretch",
         hide_index=True,
     )
 
@@ -77,12 +130,17 @@ def render_crm():
     st.markdown("### Fiche prospect modifiable")
 
     ids = view["id"].astype(int).tolist()
+
     selected_id = st.selectbox(
         "Prospect à modifier",
         ids,
-        format_func=lambda x: f"#{x} — {df.loc[df['id'] == x, 'cabinet'].iloc[0]}"
+        format_func=lambda value: (
+            f"#{value} — {df.loc[df['id'] == value, 'cabinet'].iloc[0]}"
+        ),
     )
+
     selected = df[df["id"] == int(selected_id)]
+
     if selected.empty:
         st.warning("Aucun prospect trouvé avec cet ID.")
         return
@@ -90,33 +148,36 @@ def render_crm():
     prospect = selected.iloc[0].to_dict()
 
     st.markdown("#### Suivi")
-    already_processed = (
-        str(prospect.get("is_processed", "0")) == "1"
-    )
+    already_processed = str(prospect.get("is_processed", "0")) == "1"
 
     if already_processed:
         st.success("✅ Prospect déjà traité")
-        if st.button("Réactiver ce prospect"):
+        if st.button("Réactiver ce prospect", key=f"reactivate_{selected_id}"):
             set_processed(int(selected_id), False)
             st.success("Prospect réactivé.")
     else:
-        if st.button("✔ Marquer comme traité"):
+        if st.button("✔ Marquer comme traité", key=f"processed_{selected_id}"):
             set_processed(int(selected_id), True)
             st.success("Prospect marqué comme traité.")
 
     st.markdown("#### Liens rapides")
     l1, l2, l3, l4 = st.columns(4)
+
     if prospect.get("site_web"):
         l1.link_button("Site web", prospect.get("site_web"))
+
     if prospect.get("page_contact"):
         l2.link_button("Page contact", prospect.get("page_contact"))
+
     if prospect.get("linkedin"):
         l3.link_button("LinkedIn", prospect.get("linkedin"))
+
     if prospect.get("recherche_google"):
         l4.link_button("Recherche Google", prospect.get("recherche_google"))
 
     st.markdown("#### Actions rapides")
     a1, a2, a3, a4, a5, a6 = st.columns(6)
+
     actions = [
         (a1, "Mail envoyé"),
         (a2, "LinkedIn envoyé"),
@@ -125,37 +186,105 @@ def render_crm():
         (a5, "RDV obtenu"),
         (a6, "Devenu client"),
     ]
+
     for col, label in actions:
         with col:
-            if st.button(label):
+            if st.button(label, key=f"action_{label}_{selected_id}"):
                 quick_action(int(selected_id), label)
                 st.success(f"{label} enregistré.")
 
     col1, col2 = st.columns(2)
+
     with col1:
         cabinet = st.text_input("Cabinet", value=prospect.get("cabinet", ""))
-        contact_public = st.text_input("Contact", value=prospect.get("contact_public", ""))
-        email_public = st.text_input("Email", value=prospect.get("email_public", ""))
-        telephone = st.text_input("Téléphone", value=prospect.get("telephone", ""))
-        site_web = st.text_input("Site web", value=prospect.get("site_web", ""))
-        linkedin = st.text_input("LinkedIn", value=prospect.get("linkedin", ""))
+        contact_public = st.text_input(
+            "Contact",
+            value=prospect.get("contact_public", ""),
+        )
+        email_public = st.text_input(
+            "Email",
+            value=prospect.get("email_public", ""),
+        )
+        telephone = st.text_input(
+            "Téléphone",
+            value=prospect.get("telephone", ""),
+        )
+        site_web = st.text_input(
+            "Site web",
+            value=prospect.get("site_web", ""),
+        )
+        linkedin = st.text_input(
+            "LinkedIn",
+            value=prospect.get("linkedin", ""),
+        )
 
     with col2:
-        statut = st.selectbox("Statut", STATUSES, index=_select_index(STATUSES, prospect.get("statut"), 0))
+        statut = st.selectbox(
+            "Statut",
+            STATUSES,
+            index=_select_index(STATUSES, prospect.get("statut"), 0),
+        )
+
         priorite_options = ["Haute", "Moyenne", "Faible"]
-        priorite = st.selectbox("Priorité", priorite_options, index=_select_index(priorite_options, prospect.get("priorite"), 1))
+        priorite = st.selectbox(
+            "Priorité",
+            priorite_options,
+            index=_select_index(
+                priorite_options,
+                prospect.get("priorite"),
+                1,
+            ),
+        )
+
         temp_options = ["Chaud", "Tiède", "Froid", "À vérifier"]
-        temperature = st.selectbox("Température", temp_options, index=_select_index(temp_options, prospect.get("temperature"), 1))
+        temperature = st.selectbox(
+            "Température",
+            temp_options,
+            index=_select_index(
+                temp_options,
+                prospect.get("temperature"),
+                1,
+            ),
+        )
+
         ca_options = ["Fort", "Moyen", "Faible", "À vérifier"]
-        potentiel_ca = st.selectbox("Potentiel CA", ca_options, index=_select_index(ca_options, prospect.get("potentiel_ca"), 3))
-        date_contact = st.text_input("Date contact", value=prospect.get("date_contact", ""))
-        relance_1 = st.text_input("Relance 1", value=prospect.get("relance_1", ""))
-        relance_2 = st.text_input("Relance 2", value=prospect.get("relance_2", ""))
+        potentiel_ca = st.selectbox(
+            "Potentiel CA",
+            ca_options,
+            index=_select_index(
+                ca_options,
+                prospect.get("potentiel_ca"),
+                3,
+            ),
+        )
 
-    page_contact = st.text_input("Page contact", value=prospect.get("page_contact", ""))
-    commentaires = st.text_area("Notes / commentaires", value=prospect.get("commentaires", ""), height=160)
+        date_contact = st.text_input(
+            "Date contact",
+            value=prospect.get("date_contact", ""),
+        )
+        relance_1 = st.text_input(
+            "Relance 1",
+            value=prospect.get("relance_1", ""),
+        )
+        relance_2 = st.text_input(
+            "Relance 2",
+            value=prospect.get("relance_2", ""),
+        )
 
-    if st.button("💾 Enregistrer la fiche prospect"):
+    page_contact = st.text_input(
+        "Page contact",
+        value=prospect.get("page_contact", ""),
+    )
+    commentaires = st.text_area(
+        "Notes / commentaires",
+        value=prospect.get("commentaires", ""),
+        height=160,
+    )
+
+    if st.button(
+        "💾 Enregistrer la fiche prospect",
+        key=f"save_prospect_{selected_id}",
+    ):
         update_prospect_details(
             int(selected_id),
             {

@@ -15,7 +15,7 @@ def render_actions():
     relances = df[((df["relance_1"].fillna("") <= today) & (df["relance_1"].fillna("") != "") & (df["statut"].isin(["Contacté", "Relance 1"]))) | ((df["relance_2"].fillna("") <= today) & (df["relance_2"].fillna("") != "") & (df["statut"].isin(["Contacté", "Relance 1", "Relance 2"])))]
 
     st.markdown("### À contacter")
-    st.dataframe(to_contact[["id", "temperature", "score", "prochaine_action", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "linkedin"]], use_container_width=True, hide_index=True)
+    st.dataframe(to_contact[["id", "temperature", "score", "prochaine_action", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "linkedin"]], width="stretch", hide_index=True)
 
     st.markdown("### Relances")
-    st.dataframe(relances[["id", "cabinet", "ville", "statut", "date_contact", "relance_1", "relance_2", "email_public", "telephone"]], use_container_width=True, hide_index=True)
+    st.dataframe(relances[["id", "cabinet", "ville", "statut", "date_contact", "relance_1", "relance_2", "email_public", "telephone"]], width="stretch", hide_index=True)

@@ -25,7 +25,7 @@ def render_campaigns():
                 "status",
             ]
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 

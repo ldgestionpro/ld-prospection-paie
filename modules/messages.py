@@ -1,90 +1,224 @@
+def _clean(value):
+    text = str(value or "").strip()
+    if text.lower() in {"nan", "none"}:
+        return ""
+    return text
 
-def build_mail(row, variant="agent"):
-    ville = row.get("ville") or ""
-    logiciel = row.get("logiciel") or ""
-    cabinet = row.get("cabinet") or "votre cabinet"
-    signal = row.get("signal_besoin") or "besoin paie"
-    argument = row.get("argument_commercial") or "sécurisation de la production paie"
-    logiciel_phrase = f" J’ai noté la mention de {logiciel}, ce qui peut permettre une prise en main plus rapide." if logiciel else ""
-    intro = f"{cabinet} semble recruter actuellement un profil paie à {ville}" if cabinet != "À identifier" else f"Votre cabinet semble recruter actuellement un profil paie à {ville}"
 
-    if variant == "court":
-        return f"""Bonjour,
+def _contains(text, keywords):
+    text = _clean(text).lower()
+    return any(keyword.lower() in text for keyword in keywords)
 
-{intro}. LD Gestion Pro peut intervenir en renfort externe ou en marque blanche pour assurer la {argument}.{logiciel_phrase}
 
-Seriez-vous ouverte/ouvert à un échange rapide pour voir si un soutien ponctuel peut vous être utile ?
+def _job_title(row):
+    title = _clean(row.get("intitule_offre")).lower()
 
-Lucia
-LD Gestion Pro
-Gestionnaire de paie confirmée – partenaire externe
-Votre sérénité, ma priorité"""
+    if "responsable paie" in title:
+        return "responsable paie"
+    if "collaborateur paie" in title:
+        return "collaborateur paie"
+    if "référent paie" in title or "referent paie" in title:
+        return "référent paie"
+    if "gestionnaire de paie" in title or "gestionnaire paie" in title:
+        return "gestionnaire de paie"
 
-    if variant == "relance":
-        return """Bonjour,
+    return "profil paie"
 
-Je reviens vers vous suite à mon précédent message concernant votre besoin de renfort paie.
 
-Si votre recrutement est toujours en cours, LD Gestion Pro peut intervenir ponctuellement pour sécuriser la production, les DSN, les entrées/sorties ou la reprise de dossiers.
+def _opening(row):
+    cabinet = _clean(row.get("cabinet"))
+    ville = _clean(row.get("ville"))
+    poste = _job_title(row)
 
-Un échange rapide vous permettrait-il de voir si cela peut vous soulager sur la période ?
+    if cabinet and cabinet != "À identifier":
+        if ville:
+            return f"J’ai remarqué que {cabinet} recherche actuellement un(e) {poste} à {ville}."
+        return f"J’ai remarqué que {cabinet} recherche actuellement un(e) {poste}."
 
-Lucia
-LD Gestion Pro"""
+    if ville:
+        return f"J’ai remarqué que vous recherchez actuellement un(e) {poste} à {ville}."
 
-    if variant == "cabinet":
-        return f"""Bonjour,
+    return f"J’ai remarqué que vous recherchez actuellement un(e) {poste}."
 
-{intro}. Le signal principal que j’ai relevé est : {signal}.
 
-Lorsqu’un cabinet recrute en paie, l’enjeu est souvent de maintenir la production sociale sans dégrader les délais clients. LD Gestion Pro peut intervenir en renfort externe ou en marque blanche pour assurer la {argument}.{logiciel_phrase}
+def _context(row):
+    text = " ".join(
+        [
+            _clean(row.get("intitule_offre")),
+            _clean(row.get("signal_besoin")),
+            _clean(row.get("argument_commercial")),
+            _clean(row.get("commentaires")),
+        ]
+    )
 
-Mon intervention reste discrète, alignée sur vos process, et peut couvrir les bulletins, DSN, entrées/sorties, dossiers salariés et reprise de dossiers.
+    if _contains(text, ["remplacement", "absence", "congé maternité", "arrêt maladie"]):
+        return (
+            "Dans ce type de période, l’enjeu est souvent de maintenir les échéances "
+            "de paie et de DSN sans mettre l’équipe en tension."
+        )
 
-Seriez-vous disponible pour un échange rapide cette semaine ?
+    if _contains(text, ["création de poste", "creation de poste", "structuration"]):
+        return (
+            "Lorsqu’un cabinet structure ou renforce son pôle social, un appui temporaire "
+            "peut permettre de sécuriser la production tout en laissant le temps au recrutement d’aboutir."
+        )
 
-Lucia
-LD Gestion Pro
-Gestionnaire de paie confirmée – partenaire externe
-Votre sérénité, ma priorité"""
+    if _contains(text, ["croissance", "développement", "augmentation du portefeuille"]):
+        return (
+            "Dans un contexte de croissance, un renfort externe peut aider à absorber "
+            "la charge sans désorganiser l’équipe en place."
+        )
 
-    return f"""Bonjour,
+    if _contains(text, ["portefeuille", "multi-conventions", "multi conventions"]):
+        return (
+            "La gestion d’un portefeuille paie demande une continuité de production "
+            "et une vigilance constante sur les échéances clients."
+        )
 
-{intro}. Le signal principal que j’ai relevé est : {signal}. Dans ce contexte, LD Gestion Pro peut intervenir en renfort externe ou en marque blanche pour assurer la {argument}.{logiciel_phrase}
+    return (
+        "Pendant un recrutement, un renfort opérationnel peut permettre de préserver "
+        "la continuité de service et le respect des délais clients."
+    )
 
-J’interviens auprès des cabinets comptables sur la production des bulletins, DSN, entrées/sorties, administration du personnel et reprise de dossiers.
 
-L’objectif est simple : maintenir la continuité de service sans alourdir votre organisation interne, le temps que votre recrutement aboutisse.
+def _software_sentence(row):
+    logiciel = _clean(row.get("logiciel"))
 
-Seriez-vous ouverte/ouvert à un échange rapide pour voir si un renfort ponctuel pourrait vous être utile ?
+    if not logiciel:
+        return ""
 
-Lucia
-LD Gestion Pro
-Gestionnaire de paie confirmée – partenaire externe
-Votre sérénité, ma priorité"""
+    low = logiciel.lower()
 
-def build_linkedin_message(row):
-    ville = row.get("ville") or ""
-    logiciel = row.get("logiciel") or ""
-    signal = row.get("signal_besoin") or "besoin paie"
-    logiciel_part = f" notamment sur {logiciel}" if logiciel else ""
-    return f"""Bonjour,
+    if "silae" in low:
+        return (
+            "\n\nMa maîtrise de Silae me permettrait de m’intégrer rapidement à vos méthodes "
+            "de travail et d’être opérationnelle sans longue phase de prise en main."
+        )
 
-J’ai vu que votre structure recrute actuellement sur la paie à {ville}. Le besoin semble lié à : {signal}.
+    if "cegid" in low:
+        return (
+            "\n\nLa mention de Cegid me permet également d’adapter rapidement mon intervention "
+            "à votre environnement de travail."
+        )
 
-J’interviens en renfort externe / marque blanche pour les cabinets comptables afin de sécuriser la production pendant les périodes de recrutement ou de surcharge{logiciel_part}.
+    if "sage" in low:
+        return (
+            "\n\nLa mention de Sage me permet également d’adapter rapidement mon intervention "
+            "à votre environnement de travail."
+        )
 
-Est-ce qu’un soutien ponctuel pourrait vous être utile ?"""
+    if "adp" in low:
+        return (
+            "\n\nLa mention d’ADP me permet également d’adapter rapidement mon intervention "
+            "à votre environnement de travail."
+        )
+
+    return (
+        f"\n\nLa mention de {logiciel} me permettra d’adapter mon intervention "
+        "à votre environnement de travail."
+    )
 
 
 def build_subject(row):
     ville = _clean(row.get("ville"))
-    logiciel = _clean(row.get("logiciel"))
 
-    if logiciel and ville:
-        return f"Renfort paie {logiciel} pendant votre recrutement à {ville}"
-    if logiciel:
-        return f"Renfort paie {logiciel} pendant votre recrutement"
     if ville:
         return f"Renfort paie pendant votre recrutement à {ville}"
+
     return "Renfort paie pendant votre recrutement"
+
+
+def build_mail(row, variant="agent"):
+    opening = _opening(row)
+    context = _context(row)
+    software = _software_sentence(row)
+
+    if variant == "court":
+        return f"""Bonjour,
+
+{opening}
+
+Gestionnaire de paie indépendante, j’interviens en renfort ou en marque blanche auprès des cabinets comptables afin de sécuriser la production des bulletins, les DSN, les entrées et sorties ainsi que l’administration du personnel.{software}
+
+Un renfort ponctuel pourrait-il vous être utile pendant votre recrutement ?
+
+Bien cordialement,
+
+Lucia Deloche
+LD Gestion Pro
+Votre sérénité, ma priorité.
+"""
+
+    if variant == "relance":
+        return """Bonjour,
+
+Je reviens vers vous à la suite de mon précédent message concernant un éventuel besoin de renfort paie.
+
+Si votre recrutement est toujours en cours, je peux intervenir ponctuellement afin de sécuriser la production des bulletins, les DSN, les entrées et sorties ou la reprise de dossiers.
+
+Seriez-vous disponible pour un échange rapide ?
+
+Bien cordialement,
+
+Lucia Deloche
+LD Gestion Pro
+"""
+
+    if variant == "cabinet":
+        return f"""Bonjour,
+
+{opening}
+
+{context}
+
+Gestionnaire de paie indépendante, j’interviens en marque blanche auprès des cabinets comptables pour prendre en charge tout ou partie de la production sociale : bulletins, DSN, administration du personnel, entrées et sorties des salariés ainsi que reprise de dossiers.{software}
+
+Mon intervention reste discrète, flexible et alignée sur vos process internes.
+
+Si cette solution peut répondre à un besoin actuel ou à venir, je serais ravie d’échanger avec vous quelques minutes.
+
+Bien cordialement,
+
+Lucia Deloche
+LD Gestion Pro
+Gestionnaire de paie confirmée – partenaire externe
+Votre sérénité, ma priorité.
+"""
+
+    return f"""Bonjour,
+
+{opening}
+
+{context}
+
+Pendant que vous finalisez votre recrutement, LD Gestion Pro peut intervenir en renfort externe ou en marque blanche afin de sécuriser la production paie sans alourdir votre organisation interne.
+
+J’interviens sur la production des bulletins, les DSN, l’administration du personnel, les entrées et sorties des salariés ainsi que la reprise de dossiers.{software}
+
+Si un renfort ponctuel ou temporaire peut vous être utile, je serais ravie d’en échanger avec vous.
+
+Bien cordialement,
+
+Lucia Deloche
+LD Gestion Pro
+Gestionnaire de paie confirmée – partenaire externe
+Votre sérénité, ma priorité.
+"""
+
+
+def build_linkedin_message(row):
+    ville = _clean(row.get("ville"))
+    poste = _job_title(row)
+    logiciel = _clean(row.get("logiciel"))
+
+    location = f" à {ville}" if ville else ""
+    software = f", notamment sur {logiciel}" if logiciel else ""
+
+    return f"""Bonjour,
+
+J’ai vu que votre structure recherchait actuellement un(e) {poste}{location}.
+
+J’interviens en renfort externe ou en marque blanche auprès des cabinets comptables pour sécuriser la production paie pendant les périodes de recrutement ou de surcharge{software}.
+
+Un soutien ponctuel pourrait-il vous être utile ?
+"""

@@ -7,7 +7,7 @@ def render_dashboard():
     df = load_prospects()
     st.subheader("Tableau de bord")
     if df.empty:
-        st.info("Aucun prospect pour l’instant. Va dans l’onglet Agent et lance le moteur V15 multi-sources.")
+        st.info("Aucun prospect pour l’instant. Va dans l’onglet Agent et lance le moteur V18 multi-sources.")
         return
 
     today = str(date.today())
@@ -35,4 +35,4 @@ def render_dashboard():
 
     st.markdown("### Priorités du jour")
     top = df[(df["statut"] == "À contacter") & (df["temperature"].isin(["Chaud", "Tiède"]))].head(30)
-    st.dataframe(top[["id", "campaign_id", "source", "temperature", "score", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact"]], use_container_width=True, hide_index=True)
+    st.dataframe(top[["id", "campaign_id", "source", "temperature", "score", "prochaine_action", "signal_besoin", "cabinet", "ville", "logiciel", "contact_public", "email_public", "telephone", "site_web", "page_contact"]], width="stretch", hide_index=True)
